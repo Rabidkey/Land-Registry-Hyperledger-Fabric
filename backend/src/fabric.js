@@ -53,17 +53,17 @@ function pickActorIdentity(actor, env) {
   if (a === "dev" || a === "developer") {
     return { mspId: env.DEV_MSP, certPath: env.DEV_CERT, keyDir: env.DEV_KEY_DIR };
   }
-  if (a === "usera" || a === "u1" || a === "user1") {
-    return { mspId: env.USERA_MSP, certPath: env.USERA_CERT, keyDir: env.USERA_KEY_DIR };
+  if (a === "pembeli") {
+    return { mspId: env.PEMBELI_MSP, certPath: env.PEMBELI_CERT, keyDir: env.PEMBELI_KEY_DIR };
   }
-  if (a === "userb" || a === "u2" || a === "user2") {
-    return { mspId: env.USERB_MSP, certPath: env.USERB_CERT, keyDir: env.USERB_KEY_DIR };
+  if (a === "bank") {
+    return { mspId: env.BANK_MSP, certPath: env.BANK_CERT, keyDir: env.BANK_KEY_DIR };
   }
   if (a === "notary" || a === "notaris") {
     return { mspId: env.NOTARY_MSP, certPath: env.NOTARY_CERT, keyDir: env.NOTARY_KEY_DIR };
   }
 
-  throw new Error(`Unknown actor: ${actor} (pakai: dev | userA | userB | notary)`);
+  throw new Error(`Unknown actor: ${actor} (pakai: dev | pembeli | bank | notary)`);
 }
 
 async function getContractForActor(actor, env, peerWhich = "org1") {

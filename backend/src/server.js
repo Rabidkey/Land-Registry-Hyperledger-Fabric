@@ -51,11 +51,11 @@ async function evaluateWithFallback(actor, evaluateFn) {
 app.get("/", (req, res) => {
   res.type("html").send(`
     <h2>Land Registry API</h2>
-    <p>Use ?actor=dev|userA|notary</p>
+    <p>Use ?actor=dev|Pembeli|notary</p>
     <ul>
       <li><a href="/health">/health</a></li>
       <li><a href="/api/me/id?actor=dev">/api/me/id?actor=dev</a></li>
-      <li><a href="/api/me/id?actor=userA">/api/me/id?actor=userA</a></li>
+      <li><a href="/api/me/id?actor=Pembeli">/api/me/id?actor=Pembeli</a></li>
       <li><a href="/api/me/id?actor=notary">/api/me/id?actor=notary</a></li>
     </ul>
   `);
@@ -87,10 +87,10 @@ app.get("/api/me/id", async (req, res) => {
 
 app.post("/api/certificates", async (req, res) => {
   const actor = req.query.actor || "dev";
-  const { id, lokasi, luas } = req.body;
+  const { namaCluster, lokasi, luasTotal, jumlahUnit, hargaPerUnit } = req.body;
   try {
     const result = await submitWithFallback(actor, (c) =>
-      c.submitTransaction("TerbitkanSertifikat", String(id), String(lokasi), String(luas))
+      c.submitTransaction("TerbitkanCluster", namaCluster, lokasi, String(luasTotal), String(jumlahUnit), String(hargaPerUnit))
     );
     res.json({ ok: true, txResult: decodeResult(result) });
   } catch (e) {
@@ -109,62 +109,60 @@ app.get("/api/certificates/:id", async (req, res) => {
   }
 });
 
+// GET ASSETS
 app.get("/api/assets", async (req, res) => {
   const actor = req.query.actor || "dev";
-
   try {
     const result = await evaluateWithFallback(actor, (c) =>
-      c.evaluateTransaction("GetSertifikatByOwner")
+      c.evaluateTransaction("QueryAllSertifikat")
     );
-
     const decoded = decodeResult(result);
-    const assets = decoded ? JSON.parse(decoded) : [];
+    const allAssets = decoded ? JSON.parse(decoded) : [];
 
-    res.json({
-      ok: true,
-      actor,
-      assets: Array.isArray(assets) ? assets : [],
-    });
+    //Hanya ambil yang statusnya "Siap Dijual"
+    const availableAssets = allAssets.filter(asset => asset.Status === "Siap Dijual");
+
+    res.json({ ok: true, assets: availableAssets });
   } catch (e) {
-    res.status(500).json({
-      ok: false,
-      actor,
-      error: e.message,
-    });
+    res.status(500).json({ ok: false, error: e.message });
   }
 });
 
+// GET ACTIONS
 app.get("/api/actions", async (req, res) => {
   const actor = req.query.actor || "dev";
-
   try {
-    const result = await evaluateWithFallback(actor, (c) =>
-      c.evaluateTransaction("GetTransaksiByActor")
+    const myIdResult = await evaluateWithFallback(actor, (c) =>
+      c.evaluateTransaction("GetMyID")
     );
+    const myID = decodeResult(myIdResult);
 
+    const result = await evaluateWithFallback(actor, (c) =>
+      c.evaluateTransaction("QueryAllSertifikat")
+    );
     const decoded = decodeResult(result);
-    const actions = decoded ? JSON.parse(decoded) : [];
+    const allAssets = decoded ? JSON.parse(decoded) : [];
 
-    res.json({
-      ok: true,
-      actor,
-      actions: Array.isArray(actions) ? actions : [],
+    const pendingActions = allAssets.filter(asset => {
+      return (
+        asset.Status === "Perlu ACC" &&
+        asset.Persetujuan &&
+        asset.Persetujuan[myID] === false
+      );
     });
+
+    res.json({ ok: true, actions: pendingActions });
   } catch (e) {
-    res.status(500).json({
-      ok: false,
-      actor,
-      error: e.message,
-    });
+    res.status(500).json({ ok: false, error: e.message });
   }
 });
 
 app.post("/api/sales/initiate", async (req, res) => {
   const actor = req.query.actor || "dev";
-  const { id, calonPembeliID, notarisID } = req.body;
+  const { id, metodeBayar, devID, notarisID, bankID } = req.body;
   try {
     const result = await submitWithFallback(actor, (c) =>
-      c.submitTransaction("AjukanJualBeli", String(id), String(calonPembeliID), String(notarisID))
+      c.submitTransaction("AjukanTransaksi", id, metodeBayar, devID, notarisID, bankID || "")
     );
     res.json({ ok: true, txResult: decodeResult(result) });
   } catch (e) {
@@ -177,7 +175,7 @@ app.post("/api/sales/approve", async (req, res) => {
   const { id } = req.body;
   try {
     const result = await submitWithFallback(actor, (c) =>
-      c.submitTransaction("SetujuiJualBeli", String(id))
+      c.submitTransaction("SetujuiTransaksi", String(id))
     );
     res.json({ ok: true, txResult: decodeResult(result) });
   } catch (e) {
@@ -187,14 +185,60 @@ app.post("/api/sales/approve", async (req, res) => {
 
 app.post("/api/sales/cancel", async (req, res) => {
   const actor = req.query.actor || "dev";
-  const { id } = req.body;
+  const { id, alasan } = req.body;
   try {
     const result = await submitWithFallback(actor, (c) =>
-      c.submitTransaction("BatalkanJualBeli", String(id))
+      c.submitTransaction("BatalkanTransaksi", id, alasan)
     );
     res.json({ ok: true, txResult: decodeResult(result) });
   } catch (e) {
     res.status(400).json({ ok: false, error: e.message });
+  }
+});
+
+app.get("/api/sertifikat/:id/history", async (req, res) => {
+  const actor = req.query.actor || "dev";
+  const { id } = req.params;
+  try {
+    const result = await evaluateWithFallback(actor, (c) =>
+      c.evaluateTransaction("GetHistorySertifikat", id)
+    );
+    
+    const decoded = decodeResult(result);
+    const history = decoded ? JSON.parse(decoded) : [];
+    
+    res.json({ ok: true, history: history });
+  } catch (e) {
+    res.status(400).json({ ok: false, error: e.message });
+  }
+});
+
+app.post("/api/cluster/buka", async (req, res) => {
+  const actor = req.query.actor || "dev";
+  const { namaCluster } = req.body;
+  try {
+    const result = await submitWithFallback(actor, (c) =>
+      c.submitTransaction("BukaPenjualan", namaCluster)
+    );
+    res.json({ ok: true, txResult: decodeResult(result) });
+  } catch (e) {
+    res.status(400).json({ ok: false, error: e.message });
+  }
+});
+
+app.get("/api/sertifikat/all", async (req, res) => {
+  const actor = req.query.actor || "dev";
+  try {
+    const result = await evaluateWithFallback(actor, (c) =>
+      c.evaluateTransaction("QueryAllSertifikat")
+    );
+    const decoded = decodeResult(result);
+    res.json({
+      ok: true,
+      assets: decoded ? JSON.parse(decoded) : [],
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
   }
 });
 

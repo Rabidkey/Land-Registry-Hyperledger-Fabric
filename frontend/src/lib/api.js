@@ -26,11 +26,27 @@ export function getMyId(actor) {
   return req(`/api/me/id?actor=${encodeURIComponent(actor)}`);
 }
 
-export function createCertificate(actor, { id, lokasi, luas }) {
+// 1. UPDATE: Disesuaikan dengan TerbitkanCluster (bukan satuan lagi)
+export function createCertificate(actor, { namaCluster, lokasi, luasTotal, jumlahUnit, hargaPerUnit }) {
   return req(`/api/certificates?actor=${encodeURIComponent(actor)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id, lokasi, luas: Number(luas) }),
+    body: JSON.stringify({ 
+      namaCluster, 
+      lokasi, 
+      luasTotal: Number(luasTotal), 
+      jumlahUnit: Number(jumlahUnit), 
+      hargaPerUnit: Number(hargaPerUnit) 
+    }),
+  });
+}
+
+// 2. BARU: Fungsi untuk mengubah status klaster jadi "Siap Dijual"
+export function openSale(actor, { namaCluster }) {
+  return req(`/api/cluster/buka?actor=${encodeURIComponent(actor)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ namaCluster }),
   });
 }
 
@@ -38,11 +54,17 @@ export function getCertificate(actor, id) {
   return req(`/api/certificates/${encodeURIComponent(id)}?actor=${encodeURIComponent(actor)}`);
 }
 
-export function initiateSale(actor, { id, calonPembeliID, notarisID }) {
+// 3. BARU: Fungsi ambil data semua unit
+export function getAllCertificates(actor) {
+  return req(`/api/sertifikat/all?actor=${encodeURIComponent(actor)}`);
+}
+
+// 4. UPDATE: Tambahan metodeBayar dan bankID
+export function initiateSale(actor, { id, metodeBayar, devID, notarisID, bankID }) {
   return req(`/api/sales/initiate?actor=${encodeURIComponent(actor)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id, calonPembeliID, notarisID }),
+    body: JSON.stringify({ id, metodeBayar, devID, notarisID, bankID }),
   });
 }
 
@@ -54,11 +76,12 @@ export function approveSale(actor, { id }) {
   });
 }
 
-export function cancelSale(actor, { id }) {
+// 5. UPDATE: Wajib bawa string "alasan"
+export function cancelSale(actor, { id, alasan }) {
   return req(`/api/sales/cancel?actor=${encodeURIComponent(actor)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id }),
+    body: JSON.stringify({ id, alasan }),
   });
 }
 
@@ -68,4 +91,9 @@ export function getMyAssets(actor) {
 
 export function getMyActions(actor) {
   return req(`/api/actions?actor=${encodeURIComponent(actor)}`);
+}
+
+// 6. BARU: Fungsi buat narik data Audit Trail
+export function getCertificateHistory(actor, id) {
+  return req(`/api/sertifikat/${encodeURIComponent(id)}/history?actor=${encodeURIComponent(actor)}`);
 }
